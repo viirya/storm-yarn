@@ -108,6 +108,16 @@ class StormAMRMClient extends AMRMClientImpl {
     return this.containers.addAll(containers);
   }
 
+  public synchronized void releaseSupervisorsRequest(ContainerId id) {
+    LOG.info("Releasing container (id:"+id+")");
+    releaseAssignedContainer(id);
+    Iterator<Container> it = this.containers.iterator();
+    while (it.hasNext()) {
+      if (it.next().getId().equals(id))
+        it.remove();
+    } 
+  }
+ 
   private synchronized void releaseAllSupervisorsRequest() {
     Iterator<Container> it = this.containers.iterator();
     ContainerId id;

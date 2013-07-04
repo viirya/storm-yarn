@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
@@ -189,19 +190,27 @@ public class MasterServer extends ThriftServer {
             final BlockingQueue<Container> launcherQueue) {
         Thread thread = new Thread() {
             Container container;
+            Map<String, Integer> launchedContainers = new HashMap<String, Integer>();
             @Override
             public void run() {
                 while (client.getServiceState() == Service.STATE.STARTED &&
                         !Thread.currentThread().isInterrupted()) {
                     try {
                         container = launcherQueue.take();
-                        LOG.info("LAUNCHER: Taking container with id ("+container.getId()+") from the queue.");
-                        if (client.supervisorsAreToRun()) {
-                            LOG.info("LAUNCHER: Supervisors are to run, so launching container id ("+container.getId()+")");
-                            client.launchSupervisorOnContainer(container);
+                        String host = container.getNodeId().getHost();
+                        if (launchedContainers.containsKey(host)) {
+                            LOG.info("LAUNCHER: Assigned container with id ("+container.getId()+") on the host ("+host+") where supervisor is launched, so skipping it.");
+                            client.releaseSupervisorsRequest(container.getId());
                         } else {
-                            // Do nothing
-                            LOG.info("LAUNCHER: Supervisors are not to run, so not launching container id ("+container.getId()+")");
+                            LOG.info("LAUNCHER: Taking container with id ("+container.getId()+") from the queue.");
+                            if (client.supervisorsAreToRun()) {
+                                LOG.info("LAUNCHER: Supervisors are to run, so launching container id ("+container.getId()+")");
+                                client.launchSupervisorOnContainer(container);
+                                launchedContainers.put(host, 1);
+                            } else {
+                                // Do nothing
+                                LOG.info("LAUNCHER: Supervisors are not to run, so not launching container id ("+container.getId()+")");
+                            }
                         }
                     } catch (InterruptedException e) {
                         if (client.getServiceState() == Service.STATE.STARTED) {
